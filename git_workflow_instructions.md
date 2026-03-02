@@ -64,7 +64,7 @@ If the main repository gets updated with new code, a teammate's fork will fall b
 
 2. **If there isn't an entry referencing the main _group_ repo, add it:**
 
-   `git remote add main https://github.com/amu-upc/Project_2026_II.git`
+   `git remote add main https://github.com/Eines-Informatiques-Avancades/Project_2026_II.git`
 
 3. **Fetch Changes:**
    
