@@ -2,6 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
+# Import scientific style science.mplstyle from the same directory as this script
+plt.style.use(os.path.join(os.path.dirname(__file__), 'science.mplstyle'))
+
 # Create plots in the results directory
 OUTPUT_DIR = '../results/'
 if not os.path.exists(OUTPUT_DIR):
@@ -16,7 +19,8 @@ def plot_energies():
         e_lj = data[:, 2]
         e_tors = data[:, 3]
 
-        plt.figure(figsize=(10, 6))
+        #plt.figure(figsize=(10, 6))
+        plt.figure()
         plt.plot(steps, e_tot, label='Total Energy', alpha=0.8)
         plt.plot(steps, e_lj, label='LJ Energy', alpha=0.8)
         plt.plot(steps, e_tors, label='Torsion Energy', alpha=0.8)
@@ -24,10 +28,10 @@ def plot_energies():
         plt.ylabel('Energy (kcal/mol)')
         plt.title('Energy Evolution')
         plt.legend()
-        plt.grid(True)
-        plt.savefig(os.path.join(OUTPUT_DIR, 'energy_evolution.png'), dpi=300)
+        plt.grid(True, alpha=0.3)
+        plt.savefig(os.path.join(OUTPUT_DIR, 'energy_evolution.pdf'))
         plt.close()
-        print("Generated energy_evolution.png")
+        print("Generated energy_evolution.pdf")
     except Exception as e:
         print(f"Error plotting energies: {e}")
 
@@ -38,22 +42,22 @@ def plot_observables():
         rg = data[:, 1]
         ree = data[:, 2]
 
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(5.25, 3.9372), sharex=True)
         
         ax1.plot(steps, rg, color='blue')
         ax1.set_ylabel('Radius of Gyration (Å)')
         ax1.set_title('Structural Observables Evolution')
-        ax1.grid(True)
+        ax1.grid(True, alpha=0.3)
 
         ax2.plot(steps, ree, color='red')
         ax2.set_xlabel('MC Steps')
         ax2.set_ylabel('End-to-End Distance (Å)')
-        ax2.grid(True)
+        ax2.grid(True, alpha=0.3)
 
         plt.tight_layout()
-        plt.savefig(os.path.join(OUTPUT_DIR, 'observables_evolution.png'), dpi=300)
+        plt.savefig(os.path.join(OUTPUT_DIR, 'observables_evolution.pdf'))
         plt.close()
-        print("Generated observables_evolution.png")
+        print("Generated observables_evolution.pdf")
     except Exception as e:
         print(f"Error plotting observables: {e}")
 
@@ -78,15 +82,19 @@ def plot_torsions():
         # Convert 0..pi or -pi..pi to degrees for easier interpretation if needed
         # Or just plot in radians
         
-        plt.figure(figsize=(10, 6))
+        plt.figure()
+        plt.xlim(0, np.pi)
+        ticks = [0, np.pi/4, np.pi/2, 3*np.pi/4, np.pi]
+        tick_labels = [r'$0$', r'$\pi/4$', r'$\pi/2$', r'$3\pi/4$', r'$\pi$']
+        plt.xticks(ticks, tick_labels)
         plt.hist(all_angles, bins=60, density=True, alpha=0.7, color='purple', edgecolor='black')
         plt.xlabel('Torsion Angle (rad)')
         plt.ylabel('Probability Density')
         plt.title('Equilibrium Torsion Angle Distribution')
-        plt.grid(True)
-        plt.savefig(os.path.join(OUTPUT_DIR, 'torsion_distribution.png'), dpi=300)
+        plt.grid(True, alpha=0.3)
+        plt.savefig(os.path.join(OUTPUT_DIR, 'torsion_distribution.pdf'))
         plt.close()
-        print("Generated torsion_distribution.png")
+        print("Generated torsion_distribution.pdf")
     except Exception as e:
         print(f"Error plotting torsions: {e}")
 
