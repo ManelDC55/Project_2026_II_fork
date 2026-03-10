@@ -134,7 +134,7 @@ subroutine rotate_dihedral(n_carbons, n_atoms, coords, k, delta_phi, explicit_h,
       ! ! PREPARATION FOR MC WITH HYDROGEN ATOMS
       ! c. Compute delta energy (Optimized version from colleague)
       ! Signature: (coords_old, coords_new, na, nc, k, dE, dE_lj, dE_tors)
-      ! call delta_energy_all_atoms(coords, coords_new, n_atoms, n_carbons, k_bond, dE, dE_lj, dE_tors)
+      ! call delta_energy(coords, coords_new, n_atoms, n_carbons, k_bond, dE, dE_lj, dE_tors)
 
       ! d. Metropolis acceptance criterion
       call random_number(random_value)
