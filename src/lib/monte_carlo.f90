@@ -5,7 +5,11 @@
 module monte_carlo
   use parameters    ! To get phi
   use initial_conf ! To use function unit_vec & cross
-  use energy    !To use energy functions for the mc step
+  use energy, only: delta_energy_ua => delta_energy, &
+                    compute_total_energy_ua => compute_total_energy
+  use energy_all_atoms, only: init_energy_topology, &
+                              delta_energy_aa => delta_energy, &
+                              compute_total_energy_aa => compute_total_energy    !To use energy functions for the mc step
   ! use energy_all_atoms ! for MC with hydrogen atoms
   implicit none
 
@@ -39,7 +43,7 @@ subroutine rotate_dihedral(n_carbons, n_atoms, coords, k, delta_phi, explicit_h,
     coords_new = coords
 
     ! 2. Define rotation axis: bond unitary vector C(k) -> C(k+1)
-    ! unit_vec is defined on initial-conf.f90 [cite: 63]
+    ! unit_vec is defined on initial-conf.f90 
     axis = unit_vec(coords(k+1, :) - coords(k, :))
     
     ! The rotation point/pivot is atom k+1
@@ -48,7 +52,7 @@ subroutine rotate_dihedral(n_carbons, n_atoms, coords, k, delta_phi, explicit_h,
     cos_p = cos(delta_phi)
     sin_p = sin(delta_phi)
 
-    ! 3. Rotate carbons from k+2 to the end of the chain [cite: 31]
+    ! 3. Rotate carbons from k+2 to the end of the chain 
     do i = k + 2, n_carbons
       v = coords(i, :) - pivot
       dot_uv = sum(axis * v)
@@ -61,12 +65,12 @@ subroutine rotate_dihedral(n_carbons, n_atoms, coords, k, delta_phi, explicit_h,
       coords_new(i, :) = pivot + v_rot
     end do
 
-    ! 4. Rotate hydrogens only if explicit_h is true [cite: 47, 49]
+    ! 4. Rotate hydrogens only if explicit_h is true 
     if (explicit_h) then
-      ! Hydrogens start after the last carbon (n_carbons + 1) [cite: 51]
+      ! Hydrogens start after the last carbon (n_carbons + 1) 
       do i = n_carbons + 1, n_atoms
         do j = k + 2, n_carbons
-          ! Identify if hydrogen i is bonded to a moving carbon j [cite: 30, 62]
+          ! Identify if hydrogen i is bonded to a moving carbon j 
           v = coords(i, :) - coords(j, :)
           ! Using a cutoff slightly larger than bond_ch (1.09A) 
           if (vnorm(v) < 1.2d0) then 
@@ -129,7 +133,13 @@ subroutine rotate_dihedral(n_carbons, n_atoms, coords, k, delta_phi, explicit_h,
 
       ! c. Compute delta energy (Optimized version from colleague)
       ! Signature: (coords_old, coords_new, nc, k, dE, dE_lj, dE_tors)
-      call delta_energy(coords, coords_new, n_carbons, k_bond, dE, dE_lj, dE_tors)
+            if (explicit_h) then
+        ! Signature All-Atom: (coords_old, coords_new, n_atoms, n_carbons, k, dE, dE_lj, dE_tors)
+        call delta_energy_aa(coords, coords_new, n_atoms, n_carbons, k_bond, dE, dE_lj, dE_tors)
+      else
+        ! Signature United-Atom: (coords_old, coords_new, nc, k, dE, dE_lj, dE_tors)
+        call delta_energy_ua(coords, coords_new, n_carbons, k_bond, dE, dE_lj, dE_tors)
+      end if
 
       ! ! PREPARATION FOR MC WITH HYDROGEN ATOMS
       ! c. Compute delta energy (Optimized version from colleague)
@@ -194,7 +204,12 @@ subroutine rotate_dihedral(n_carbons, n_atoms, coords, k, delta_phi, explicit_h,
 
         ! 1. Establish the Baseline Energy
         ! Before starting moves, we must know the energy of the starting configuration
-        call compute_total_energy(coords, n_carbons, E_total, E_lj, E_tors)
+        ! 1. Establish the Baseline Energy
+        if (explicit_h) then
+            call compute_total_energy_aa(coords, n_atoms, n_carbons, E_total, E_lj, E_tors)
+        else
+            call compute_total_energy_ua(coords, n_carbons, E_total, E_lj, E_tors)
+        end if
 
         write(*,'(A)')       " [MC Engine] Simulation Initialized"
         write(*,'(A,F15.4)') " [MC Engine] Initial Total Energy (kcal/mol): ", E_total
