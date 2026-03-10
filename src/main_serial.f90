@@ -6,13 +6,15 @@ program main_serial
   use parameters
   use io
   use initial_conf
-  ! use energy_all_atoms ! for MC with hydrogen atoms
-  use energy ! for MC without hydrogen atoms
+  ! use energy_all_atoms version of compute_total_energy if input.dat has explicit_h = .true.
+  use energy, only: compute_total_energy_ua => compute_total_energy
+  use energy_all_atoms, only: init_energy_topology, &
+                              compute_total_energy_aa => compute_total_energy
   use monte_carlo
   use observables
   implicit none
 
-  integer :: n_carbons, conf_type, rng_seed
+  integer :: n_carbons, n_atoms,conf_type, rng_seed
   logical :: explicit_h
   character(len=256) :: xyz_file
 
@@ -53,6 +55,7 @@ program main_serial
   beta = 1.0d0 / (kb * T)
   max_delta = 0.2d0 ! radians (approx 11 degrees)
   total_accepted = 0
+  n_atoms = size(symbols) ! Number of atoms (including hydrogens)
 
   ! Make the outputs have the name of the parameters used in the simulation:
   write(s_ncarb,  '(I0)') n_carbons
@@ -76,7 +79,7 @@ program main_serial
 
 
 
-  !allocate(phis(size(symbols) - 3))
+  ! Torsion angles array
   allocate(phis(n_carbons - 3))
 
 
@@ -87,8 +90,15 @@ program main_serial
   ! call init_energy_topology(n_atoms, n_carbons, coords, symbols)
   ! call compute_total_energy(coords, n_atoms, n_carbons, E_total, E_lj, E_tors)
   
-  ! Calculate initial energy
-  call compute_total_energy(coords, n_carbons, E_total, E_lj, E_tors)
+  ! Calculate initial energy (depending on explicit_h setting in input.dat)
+  if (explicit_h) then
+    ! Initialize Topology and Establish Baseline Energy by mapping explicit hydrogens to the backbone
+    ! and then calculating total energy of the starting configuration before starting MC moves.
+    call init_energy_topology(n_atoms, n_carbons, coords, symbols)
+    call compute_total_energy_aa(coords, n_atoms, n_carbons, E_total, E_lj, E_tors)
+  else
+    call compute_total_energy_ua(coords, n_carbons, E_total, E_lj, E_tors)
+  end if
 
   ! Save the pure initial structure to confs/initial.xyz
   write(comment, '(A,F15.4)') "Step 0 (Initial) E=", E_total
@@ -127,7 +137,7 @@ program main_serial
     if (T < T_fin) T = T_fin
     beta = 1.0d0 / (kb * T)
 
-    call mc_step(n_carbons, size(symbols), coords, symbols, explicit_h, &
+    call mc_step(n_carbons, n_atoms, coords, symbols, explicit_h, &
                  beta, max_delta, E_total, E_lj, E_tors, accepted_step)
     
     if (accepted_step) total_accepted = total_accepted + 1
@@ -138,12 +148,12 @@ program main_serial
       write(u_ener, '(I10, 3F15.4)') istep, E_total, E_lj, E_tors
 
       ! Observables
-      rg2 = compute_rg(size(symbols), coords)
-      ree2 = compute_end_to_end(size(symbols), coords)
+      rg2 = compute_rg(n_carbons, coords)
+      ree2 = compute_end_to_end(n_carbons, coords)
       write(u_obs, '(I10, 2F15.4)') istep, sqrt(rg2), sqrt(ree2)
 
       ! Torsions
-      call compute_torsion_angles(size(symbols), coords, phis)
+      call compute_torsion_angles(n_carbons, coords, phis)
       write(u_tors, '(I10)', advance='no') istep
       write(u_tors, '(*(F10.4))') phis
       
