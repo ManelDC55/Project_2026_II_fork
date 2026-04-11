@@ -38,6 +38,30 @@ if (explicit_h) then
 end if
 ```
 
+## The MC Step and Metropolis Criterion
+
+Each call to `mc_step` constitutes one trial move of the simulation. The subroutine follows four stages:
+
+**1. Proposal generation.** A random internal bond index $k$ is drawn uniformly from $[1,\, N_C - 2]$, and a random rotation angle $\phi$ is sampled uniformly from $[-\Delta\phi_{\max},\, \Delta\phi_{\max}]$. The parameter `max_delta` controls the maximum displacement and is tuned to achieve a reasonable acceptance rate.
+
+**2. Trial configuration.** `rotate_dihedral` is called with the chosen $k$ and $\phi$ to produce `coords_new`, leaving the original coordinates untouched.
+
+**3. Energy difference.** Rather than recomputing the full energy of the new configuration, an optimized $\Delta E$ function is used that only recalculates the interactions affected by the rotation. Two code paths exist depending on the model: `delta_energy_aa` for all-atom mode and `delta_energy_ua` for united-atom mode, dispatched via the `explicit_h` flag.
+
+**4. Metropolis acceptance.** The move is accepted unconditionally if $\Delta E < 0$. Otherwise, it is accepted with probability $\exp(-\beta \,\Delta E)$, where $\beta = 1/(k_B T)$. If accepted, `coords` and the energy accumulators are updated in place; if rejected, the trial configuration is discarded.
+
+```fortran
+! d. Metropolis acceptance criterion
+call random_number(random_value)
+if (dE < 0.0d0 .or. random_value < exp(-beta * dE)) then
+  coords  = coords_new
+  E_total = E_total + dE
+  E_lj    = E_lj    + dE_lj
+  E_tors  = E_tors  + dE_tors
+  accepted = .true.
+end if
+```
+
 ## Convergence Detection: the Geweke Z-Test
 
 Detecting equilibration of a Markov chain is non-trivial because successive samples are highly correlated. The Geweke diagnostic was used, as it is designed specifically for Markov chain output and accounts for this autocorrelation.
@@ -99,19 +123,7 @@ end do
 
 ## Convergence Detection with Geweke Z-Test
 
-Detecting equilibration of a Markov chain is non-trivial because successive samples are highly correlated. The Geweke diagnostic was used, as it is designed specifically for Markov chain output and accounts for this autocorrelation.
-
-The test compares the mean energy in the first $f_A = 10\%$ of an accumulated buffer of $N = 300$ energy samples against the mean in the last $f_B = 50\%$:
-
-$$z = \frac{\bar{x}_A - \bar{x}_B}{\sqrt{SE_A^2 + SE_B^2}}$$
-
-Here, $SE_A$ and $SE_B$ represent the Standard Errors of the mean energy for window A and window B, respectively. They measure the statistical uncertainty of our calculated averages.
-
-In a dataset of independent measurements, calculating the standard error is straightforward. However, Monte Carlo trajectories are autocorrelated — each new geometry is simply the previous one with a slight rotation. If we computed $SE_A$ and $SE_B$ directly from the raw sample variance, the autocorrelation would cause us to drastically underestimate the error, tricking the algorithm into declaring a false equilibrium.
-
-To solve this, the code computes $SE_A$ and $SE_B$ using batch means. Instead of treating all $n$ samples in a window individually, the window is divided into $\lfloor\sqrt{n}\rfloor$ discrete batches or blocks. By calculating the variance across the averages of these batches, the local autocorrelation is "smoothed out," providing a consistent and conservative estimator of the true long-run variance.
-
-Under the null hypothesis of stationarity, $z$ follows a standard normal distribution. Equilibrium is accepted when $|z| < z_{\text{crit}} = 1.96$ (95% confidence level) on $n_{\text{consec}} = 3$ consecutive evaluations, preventing false positives caused by temporary plateaus. The test is re-evaluated every `eval_freq` synchronisation points once the buffer is full.
+The same Geweke diagnostic described in the serial engine section is used here to detect equilibration. Each worker maintains its own sliding energy buffer, and the master evaluates the test every `eval_freq` synchronisation points once the buffer is full. Equilibrium is declared only when the test passes $n_{\text{consec}} = 3$ consecutive times.
 
 ```fortran
 ! Batch means SE for window A (first fA% of buffer)
